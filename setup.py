@@ -7,6 +7,7 @@ setup(
     name='edenred-payments',
     version=edenred.__VERSION__,
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
+    install_requires=['requests'],
     test_suite='nose.collector',
     tests_require=['nose', 'mock'],
 )

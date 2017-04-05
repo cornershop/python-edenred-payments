@@ -1,5 +1,5 @@
 
-from .provider import APIProvider
+from .providers import APIProvider
 
 
 class Edenred(object):

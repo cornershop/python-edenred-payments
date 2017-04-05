@@ -1,18 +1,17 @@
 
 from unittest import TestCase
-
 try:
     from unitttest import mock
 except ImportError:
     import mock
 
 from edenred.client import Edenred, Card, Authorization, Charge
-from edenred.provider import APIProviderBase
+from edenred.providers import APIProvider
 
 
 class TestClient(TestCase):
     def setUp(self):
-        self.provider = mock.Mock(spec=APIProviderBase)
+        self.provider = mock.Mock(spec=APIProvider)
 
     def test_init(self):
         client = Edenred(self.provider)
@@ -81,7 +80,7 @@ class TestClient(TestCase):
 
 class TestCard(TestCase):
     def setUp(self):
-        self.provider = mock.Mock(spec=APIProviderBase)
+        self.provider = mock.Mock(spec=APIProvider)
         self.card_token = mock.Mock()
 
     def test_init(self):
@@ -130,7 +129,7 @@ class TestCard(TestCase):
 
 class TestAuthorization(TestCase):
     def setUp(self):
-        self.provider = mock.Mock(spec=APIProviderBase)
+        self.provider = mock.Mock(spec=APIProvider)
         self.charge_id = mock.Mock()
         self.card_token = mock.Mock()
 
@@ -158,7 +157,7 @@ class TestAuthorization(TestCase):
 
 class TestCharge(TestCase):
     def test_init(self):
-        provider = mock.Mock(spec=APIProviderBase)
+        provider = mock.Mock(spec=APIProvider)
         charge_id = mock.Mock()
         charge = Charge(charge_id, provider)
 
