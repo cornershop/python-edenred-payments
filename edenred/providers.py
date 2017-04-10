@@ -1,6 +1,8 @@
 
 import requests
 
+from .exceptions import APIError, Unauthorized
+
 
 class APIProvider(object):
     CONTENT_TYPE = 'application/json; charset=utf-8'
@@ -32,13 +34,16 @@ class APIProvider(object):
 
     @staticmethod
     def do_request(url, headers, payload):
-        response = requests.post(
-            url,
-            data=payload,
-            headers=headers
-        )
-        response.raise_for_status()
-        return response.json()
+        try:
+            response = requests.post(
+                url,
+                data=payload,
+                headers=headers
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.HTTPError as http_error:
+            raise APIError.create_from_http_error(http_error)
 
     def authorize(self, card_token, amount, description):
         payload = {
@@ -92,21 +97,30 @@ class APIProvider(object):
         data = self.request_resource('CreatePaymentMethod', payload)
         return data['PaymentMethod']
 
-    def request_resource(self, resource, payload):
-        return self.do_request(
-            url=self.get_endpoint_url(resource=resource, base_url=self.base_url),
-            headers=self._get_headers(),
-            payload=payload
+    def request_resource(self, resource, payload, renew_on_unauthorized=True):
+        try:
+            return self.do_request(
+                url=self.get_endpoint_url(resource=resource, base_url=self.base_url),
+                headers=self._get_headers(),
+                payload=payload
+            )
+        except Unauthorized:
+            if renew_on_unauthorized:
+                self.update_token()
+                return self.request_resource(resource, payload, renew_on_unauthorized=False)
+            raise
+
+    def update_token(self):
+        self.access_token = self.create_access_token(
+            client_id=self.client_id,
+            client_secret=self.client_secret,
+            public_key=self.public_key,
+            base_url=self.base_url
         )
 
     def _get_headers(self):
         if self.access_token is None:
-            self.access_token = self.create_access_token(
-                client_id=self.client_id,
-                client_secret=self.client_secret,
-                public_key=self.public_key,
-                base_url=self.base_url
-            )
+            self.update_token()
         return {
             'Content-Type': APIProvider.CONTENT_TYPE,
             'access_token': self.access_token

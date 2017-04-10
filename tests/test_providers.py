@@ -5,8 +5,11 @@ try:
 except ImportError:
     import mock
 
+from requests.exceptions import HTTPError
+
 from edenred.providers import APIProvider
 from edenred.utils import PublicKey
+from edenred.exceptions import APIError, Unauthorized
 
 
 class TestAPIProvider(TestCase):
@@ -24,43 +27,6 @@ class TestAPIProvider(TestCase):
         self.assertEqual(client_secret, provider.client_secret)
         self.assertEqual(public_key, provider.public_key)
         self.assertIsNone(provider.access_token)
-
-    @mock.patch('edenred.providers.requests')
-    def test_do_request(self, requests):
-        payload = mock.Mock(spec=dict)
-        headers = mock.Mock(spec=dict)
-        url = mock.Mock(spec=str)
-        response = requests.post.return_value
-
-        result = APIProvider.do_request(url=url, headers=headers, payload=payload)
-
-        self.assertEqual(requests.post.return_value.json.return_value, result)
-        requests.post.assert_called_once_with(url, data=payload, headers=headers)
-        response.raise_for_status.assert_called_once_with()
-
-    @mock.patch('edenred.providers.APIProvider.do_request')
-    @mock.patch('edenred.providers.APIProvider.get_endpoint_url')
-    @mock.patch('edenred.providers.APIProvider._get_headers')
-    def test_request_resource_logged(self, _get_headers, get_endpoint_url, do_request):
-        public_key = mock.Mock(spec=PublicKey)
-        base_url = mock.Mock(spec=str)
-        client_id = mock.Mock(spec=str)
-        client_secret = mock.Mock(spec=str)
-        resource = mock.Mock(spec=str)
-        payload = mock.Mock(spec=dict)
-        access_token = mock.Mock(spec=str)
-        provider = APIProvider(
-            client_id=client_id, client_secret=client_secret, base_url=base_url, public_key=public_key
-        )
-        provider.access_token = access_token
-
-        result = provider.request_resource(resource=resource, payload=payload)
-
-        self.assertEqual(do_request.return_value, result)
-        do_request.assert_called_once_with(
-            url=get_endpoint_url.return_value, payload=payload, headers=_get_headers.return_value
-        )
-        get_endpoint_url.assert_called_once_with(resource=resource, base_url=base_url)
 
     def test_get_headers_logged(self):
         public_key = mock.Mock(spec=PublicKey)
@@ -139,6 +105,33 @@ class TestAPIProvider(TestCase):
         get_endpoint_url.assert_called_once_with(resource='Login', base_url=base_url)
 
 
+class TestDoRequest(TestCase):
+
+    @mock.patch('edenred.providers.requests')
+    def test_do_request(self, requests):
+        payload = mock.Mock(spec=dict)
+        headers = mock.Mock(spec=dict)
+        url = mock.Mock(spec=str)
+        response = requests.post.return_value
+
+        result = APIProvider.do_request(url=url, headers=headers, payload=payload)
+
+        self.assertEqual(requests.post.return_value.json.return_value, result)
+        requests.post.assert_called_once_with(url, data=payload, headers=headers)
+        response.raise_for_status.assert_called_once_with()
+
+    @mock.patch('edenred.providers.requests.post')
+    def test_do_request_http_error(self, requests_post):
+        payload = mock.Mock(spec=dict)
+        headers = mock.Mock(spec=dict)
+        url = mock.Mock(spec=str)
+        response = requests_post.return_value
+        response.raise_for_status.side_effect = HTTPError(response=mock.Mock())
+
+        with self.assertRaises(APIError, http_error=response.raise_for_status.side_effect):
+            APIProvider.do_request(url=url, headers=headers, payload=payload)
+
+
 class ProviderBaseMixin(object):
     def create_provider(self, access_token=None):
         public_key = mock.Mock(spec=PublicKey)
@@ -152,6 +145,51 @@ class ProviderBaseMixin(object):
     def setUp(self):
         self.access_token = mock.Mock(spec=str)
         self.provider = self.create_provider(self.access_token)
+
+
+class TestRequestResource(ProviderBaseMixin, TestCase):
+
+    @mock.patch('edenred.providers.APIProvider.do_request')
+    @mock.patch('edenred.providers.APIProvider.get_endpoint_url')
+    @mock.patch('edenred.providers.APIProvider._get_headers')
+    def test_request_resource(self, _get_headers, get_endpoint_url, do_request):
+        resource = mock.Mock(spec=str)
+        payload = mock.Mock(spec=dict)
+
+        result = self.provider.request_resource(resource=resource, payload=payload)
+
+        self.assertEqual(do_request.return_value, result)
+        do_request.assert_called_once_with(
+            url=get_endpoint_url.return_value, payload=payload, headers=_get_headers.return_value
+        )
+        get_endpoint_url.assert_called_once_with(resource=resource, base_url=self.provider.base_url)
+
+    @mock.patch('edenred.providers.APIProvider.update_token')
+    @mock.patch('edenred.providers.APIProvider.do_request')
+    @mock.patch('edenred.providers.APIProvider.get_endpoint_url')
+    @mock.patch('edenred.providers.APIProvider._get_headers')
+    def test_request_resource_unauthorized(self, _get_headers, get_endpoint_url, do_request, update_token):
+        resource = mock.Mock(spec=str)
+        payload = mock.Mock(spec=dict)
+        expected = mock.Mock()
+        do_request.side_effect = [Unauthorized(HTTPError()), expected]
+
+        result = self.provider.request_resource(resource=resource, payload=payload)
+
+        self.assertEqual(expected, result)
+
+    @mock.patch('edenred.providers.APIProvider.update_token')
+    @mock.patch('edenred.providers.APIProvider.do_request')
+    @mock.patch('edenred.providers.APIProvider.get_endpoint_url')
+    @mock.patch('edenred.providers.APIProvider._get_headers')
+    def test_request_resource_unauthorized_twice(self, _get_headers, get_endpoint_url, do_request, update_token):
+        resource = mock.Mock(spec=str)
+        payload = mock.Mock(spec=dict)
+        expected = HTTPError()
+        do_request.side_effect = [Unauthorized(HTTPError()), Unauthorized(expected)]
+
+        with self.assertRaises(Unauthorized, http_error=expected):
+            self.provider.request_resource(resource=resource, payload=payload)
 
 
 class TestCreatePaymentMethod(ProviderBaseMixin, TestCase):
