@@ -14,8 +14,17 @@ class TestPublicKey(TestCase):
         key = PublicKey(path)
 
         self.assertEqual(path, key.path)
+        self.assertFalse(key.testing)
 
-    def test_encrypt(self):
+    def test_init_testing(self):
+        path = mock.Mock(spec=str)
+        testing = mock.Mock(spec=bool)
+        key = PublicKey(path, testing)
+
+        self.assertEqual(path, key.path)
+        self.assertEqual(testing, key.testing)
+
+    def test_encrypt_testing(self):
         path = mock.Mock(spec=str)
         key = PublicKey(path)
 

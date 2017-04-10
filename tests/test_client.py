@@ -1,4 +1,4 @@
-
+import os
 from unittest import TestCase
 try:
     from unitttest import mock
@@ -18,33 +18,89 @@ class TestClient(TestCase):
 
         self.assertEqual(self.provider, client.api_provider)
 
-    @mock.patch('edenred.client.APIProvider.create_for_client')
-    def test_factory_create(self, create_for_client):
-        client_id = mock.Mock()
-        client_secret = mock.Mock()
-        public_key_path = mock.Mock()
-        create_for_client.return_value = self.provider
+    @mock.patch('edenred.client.Edenred.create_client')
+    def test_factore_create_from_env(self, create_client):
+        client_id = 'client_id'
+        client_secret = 'client_secret'
+        public_key_path = 'public_key_path'
+        base_url = 'base_url'
+        environ = {
+            'EDENREDPAYMENTS_ID': client_id,
+            'EDENREDPAYMENTS_SECRET': client_secret,
+            'EDENREDPAYMENTS_PUBLIC_KEY': public_key_path,
+            'EDENREDPAYMENTS_URL': base_url
+        }
 
-        client = Edenred.create_client(client_id, client_secret, public_key_path)
+        with mock.patch.dict('edenred.client.os.environ', environ):
+            result = Edenred.create_client_from_env()
 
-        expected = Edenred(create_for_client.return_value)
+        create_client.assert_called_once_with(
+            client_id, client_secret, public_key_path, base_url, False
+        )
+        self.assertEqual(create_client.return_value, result)
 
+    @mock.patch('edenred.client.Edenred.create_client')
+    def test_factore_create_from_env_testing(self, create_client):
+        client_id = 'client_id'
+        client_secret = 'client_secret'
+        public_key_path = 'public_key_path'
+        base_url = 'base_url'
+        environ = {
+            'EDENREDPAYMENTS_ID': client_id,
+            'EDENREDPAYMENTS_SECRET': client_secret,
+            'EDENREDPAYMENTS_PUBLIC_KEY': public_key_path,
+            'EDENREDPAYMENTS_URL': base_url,
+            'EDENREDPAYMENTS_TESTING': '1',
+        }
+
+        with mock.patch.dict('edenred.client.os.environ', environ):
+            result = Edenred.create_client_from_env()
+
+        create_client.assert_called_once_with(
+            client_id, client_secret, public_key_path, base_url, True
+        )
+        self.assertEqual(create_client.return_value, result)
+
+    @mock.patch('edenred.client.PublicKey')
+    @mock.patch('edenred.client.APIProvider')
+    def test_factory_create(self, APIProvider, PublicKey):
+        client_id = mock.Mock(spec=str)
+        client_secret = mock.Mock(spec=str)
+        public_key_path = mock.Mock(spec=str)
+        public_key = PublicKey.return_value
+        base_url = mock.Mock(spec=str)
+        APIProvider.return_value = self.provider
+
+        client = Edenred.create_client(client_id, client_secret, public_key_path, base_url)
+
+        expected = Edenred(APIProvider.return_value)
+
+        PublicKey.assert_called_once_with(public_key_path, testing=False)
+        APIProvider.assert_called_once_with(
+            client_id=client_id, client_secret=client_secret, public_key=public_key, base_url=base_url
+        )
         self.assertEqual(expected, client)
-        create_for_client.assert_called_once_with(client_id, client_secret, public_key_path)
 
-    def test_factory_create_custom(self):
-        client_id = mock.Mock()
-        client_secret = mock.Mock()
-        public_key_path = mock.Mock()
-        provider_class = mock.Mock()
-        provider_class.create_for_client.return_value = self.provider
+    @mock.patch('edenred.client.PublicKey')
+    @mock.patch('edenred.client.APIProvider')
+    def test_factory_create_testing(self, APIProvider, PublicKey):
+        client_id = mock.Mock(spec=str)
+        client_secret = mock.Mock(spec=str)
+        public_key_path = mock.Mock(spec=str)
+        public_key = PublicKey.return_value
+        base_url = mock.Mock(spec=str)
+        testing = mock.Mock(spec=bool)
+        APIProvider.return_value = self.provider
 
-        client = Edenred.create_client(client_id, client_secret, public_key_path, provider_class)
+        client = Edenred.create_client(client_id, client_secret, public_key_path, base_url, testing=testing)
 
-        expected = Edenred(provider_class.create_for_client.return_value)
+        expected = Edenred(APIProvider.return_value)
 
+        PublicKey.assert_called_once_with(public_key_path, testing=testing)
+        APIProvider.assert_called_once_with(
+            client_id=client_id, client_secret=client_secret, public_key=public_key, base_url=base_url
+        )
         self.assertEqual(expected, client)
-        provider_class.create_for_client.assert_called_once_with(client_id, client_secret, public_key_path)
 
     def test_register_card(self):
         card_number = mock.Mock()

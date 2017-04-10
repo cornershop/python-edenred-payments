@@ -13,117 +13,99 @@ class TestAPIProvider(TestCase):
 
     def test_init(self):
         public_key = mock.Mock(spec=PublicKey)
-        access_token = mock.Mock(spec=str)
-        provider = APIProvider(access_token=access_token, public_key=public_key)
+        base_url = mock.Mock(spec=str)
+        client_id = mock.Mock(spec=str)
+        client_secret = mock.Mock(spec=str)
+        provider = APIProvider(
+            client_id=client_id, client_secret=client_secret, base_url=base_url, public_key=public_key
+        )
 
-        self.assertFalse(provider.testing)
-        self.assertEqual(access_token, provider.access_token)
+        self.assertEqual(client_id, provider.client_id)
+        self.assertEqual(client_secret, provider.client_secret)
         self.assertEqual(public_key, provider.public_key)
-
-    def test_init_testing(self):
-        public_key = mock.Mock(spec=PublicKey)
-        access_token = mock.Mock(spec=str)
-        provider = APIProvider(access_token=access_token, public_key=public_key, testing=True)
-
-        self.assertTrue(provider.testing)
-        self.assertEqual(access_token, provider.access_token)
-        self.assertEqual(public_key, provider.public_key)
+        self.assertIsNone(provider.access_token)
 
     @mock.patch('edenred.providers.requests')
     def test_do_request(self, requests):
         payload = mock.Mock(spec=dict)
         headers = mock.Mock(spec=dict)
         url = mock.Mock(spec=str)
+        response = requests.post.return_value
 
         result = APIProvider.do_request(url=url, headers=headers, payload=payload)
 
         self.assertEqual(requests.post.return_value.json.return_value, result)
         requests.post.assert_called_once_with(url, data=payload, headers=headers)
+        response.raise_for_status.assert_called_once_with()
 
     @mock.patch('edenred.providers.APIProvider.do_request')
     @mock.patch('edenred.providers.APIProvider.get_endpoint_url')
     @mock.patch('edenred.providers.APIProvider._get_headers')
-    def test_request_resource(self, _get_headers, get_endpoint_url, do_request):
+    def test_request_resource_logged(self, _get_headers, get_endpoint_url, do_request):
         public_key = mock.Mock(spec=PublicKey)
-        access_token = mock.Mock(spec=str)
-        testing = mock.Mock(spec=bool)
-        payload = mock.Mock(spec=dict)
+        base_url = mock.Mock(spec=str)
+        client_id = mock.Mock(spec=str)
+        client_secret = mock.Mock(spec=str)
         resource = mock.Mock(spec=str)
+        payload = mock.Mock(spec=dict)
+        access_token = mock.Mock(spec=str)
+        provider = APIProvider(
+            client_id=client_id, client_secret=client_secret, base_url=base_url, public_key=public_key
+        )
+        provider.access_token = access_token
 
-        provider = APIProvider(access_token=access_token, public_key=public_key, testing=testing)
         result = provider.request_resource(resource=resource, payload=payload)
 
         self.assertEqual(do_request.return_value, result)
         do_request.assert_called_once_with(
             url=get_endpoint_url.return_value, payload=payload, headers=_get_headers.return_value
         )
-        get_endpoint_url.assert_called_once_with(resource=resource, testing=testing)
+        get_endpoint_url.assert_called_once_with(resource=resource, base_url=base_url)
 
-    def test__get_headers(self):
+    def test_get_headers_logged(self):
         public_key = mock.Mock(spec=PublicKey)
-        access_token = mock.Mock(spec=str)
-
-        provider = APIProvider(access_token=access_token, public_key=public_key)
-
-        self.assertEqual({'access_token': access_token}, provider._get_headers())
-
-    @mock.patch('edenred.providers.APIProvider.get_public_key')
-    @mock.patch('edenred.providers.APIProvider.create_access_token')
-    @mock.patch('edenred.providers.APIProvider.get_base_url')
-    def test_create_for_client(self, get_base_url, create_access_token, get_public_key):
+        base_url = mock.Mock(spec=str)
         client_id = mock.Mock(spec=str)
         client_secret = mock.Mock(spec=str)
-        public_key_path = mock.Mock(spec=str)
-
-        expected = APIProvider(
-            access_token=create_access_token.return_value,
-            public_key=get_public_key.return_value,
+        provider = APIProvider(
+            client_id=client_id, client_secret=client_secret, base_url=base_url, public_key=public_key
         )
+        provider.access_token = mock.Mock(spec=str)
+        expected = {
+            'access_token': provider.access_token,
+            'Content-Type': 'application/json; charset=utf-8'
+        }
 
-        provider = APIProvider.create_for_client(client_id, client_secret, public_key_path)
+        self.assertEqual(expected, provider._get_headers())
 
-        self.assertEqual(expected, provider)
-        get_public_key.assert_called_once_with(public_key_path)
-        create_access_token.assert_called_once_with(client_id, client_secret, get_public_key.return_value, False)
-
-    @mock.patch('edenred.providers.APIProvider.get_public_key')
     @mock.patch('edenred.providers.APIProvider.create_access_token')
-    @mock.patch('edenred.providers.APIProvider.get_base_url')
-    def test_create_for_client_testing(self, get_base_url, create_access_token, get_public_key):
+    def test_get_headers_notlogged(self, create_access_token):
+        public_key = mock.Mock(spec=PublicKey)
+        base_url = mock.Mock(spec=str)
         client_id = mock.Mock(spec=str)
         client_secret = mock.Mock(spec=str)
-        public_key_path = mock.Mock(spec=str)
+        provider = APIProvider(
+            client_id=client_id, client_secret=client_secret, base_url=base_url, public_key=public_key
+        )
+        expected = {
+            'access_token': create_access_token.return_value,
+            'Content-Type': 'application/json; charset=utf-8'
+        }
 
-        expected = APIProvider(
-            access_token=create_access_token.return_value,
-            public_key=get_public_key.return_value,
-            testing=True
+        self.assertEqual(expected, provider._get_headers())
+        self.assertEqual(create_access_token.return_value, provider.access_token)
+        create_access_token.assert_called_once_with(
+            client_id=client_id, client_secret=client_secret, public_key=public_key, base_url=base_url
         )
 
-        provider = APIProvider.create_for_client(client_id, client_secret, public_key_path, testing=True)
-
-        self.assertEqual(expected, provider)
-        get_public_key.assert_called_once_with(public_key_path)
-        create_access_token.assert_called_once_with(client_id, client_secret, get_public_key.return_value, True)
-
-    def test_get_public_key(self):
-        public_key_path = mock.Mock(spec=str)
-
-        public_key = PublicKey(public_key_path)
-
-        self.assertEqual(public_key, APIProvider.get_public_key(public_key_path))
-
-    @mock.patch('edenred.providers.APIProvider.get_base_url')
-    def test_get_endpoint_url(self, get_base_url):
-        get_base_url.return_value = mock.Mock(spec=str)
+    def test_get_endpoint_url(self):
+        base_url = mock.Mock(spec=str)
         resource = mock.Mock(spec=str)
-        testing = mock.Mock()
 
         self.assertEqual(
-            "{}/{}".format(get_base_url.return_value, resource),
-            APIProvider.get_endpoint_url(resource, testing)
+            "{}/{}".format(base_url, resource),
+            APIProvider.get_endpoint_url(resource=resource, base_url=base_url)
         )
-        get_base_url.assert_called_once_with(testing)
 
     @mock.patch('edenred.providers.APIProvider.get_endpoint_url')
     @mock.patch('edenred.providers.APIProvider.do_request')
@@ -132,7 +114,7 @@ class TestAPIProvider(TestCase):
         client_secret = mock.Mock(spec=str)
         public_key = mock.Mock(spec=PublicKey)
         access_token = mock.Mock(spec=str)
-        testing = mock.Mock(spec=bool)
+        base_url = mock.Mock(spec=str)
         payload = {
             "Security": {
                 "ClientIdentifier": client_id,
@@ -147,21 +129,32 @@ class TestAPIProvider(TestCase):
 
         self.assertEqual(
             access_token,
-            APIProvider.create_access_token(client_id, client_secret, public_key, testing=testing)
+            APIProvider.create_access_token(client_id, client_secret, public_key, base_url)
         )
         do_request.assert_called_once_with(
             url=get_endpoint_url.return_value,
             payload=payload,
-            headers={}
+            headers={'Content-Type': 'application/json; charset=utf-8'}
         )
-        get_endpoint_url.assert_called_once_with('Login', testing=testing)
+        get_endpoint_url.assert_called_once_with(resource='Login', base_url=base_url)
 
 
-class TestCreatePaymentMethod(TestCase):
+class ProviderBaseMixin(object):
+    def create_provider(self, access_token=None):
+        public_key = mock.Mock(spec=PublicKey)
+        base_url = mock.Mock(spec=str)
+        client_id = mock.Mock(spec=str)
+        client_secret = mock.Mock(spec=str)
+        return APIProvider(
+            client_id=client_id, client_secret=client_secret, base_url=base_url, public_key=public_key
+        )
+
     def setUp(self):
-        self.public_key = mock.Mock(spec=PublicKey)
         self.access_token = mock.Mock(spec=str)
-        self.provider = APIProvider(self.public_key, self.access_token)
+        self.provider = self.create_provider(self.access_token)
+
+
+class TestCreatePaymentMethod(ProviderBaseMixin, TestCase):
 
     @mock.patch('edenred.providers.APIProvider.request_resource')
     def test_create_payment_method(self, request_resource):
@@ -175,7 +168,7 @@ class TestCreatePaymentMethod(TestCase):
             expiration_month: mock.Mock(spec=str),
             expiration_year: mock.Mock(spec=str)
         }
-        self.public_key.encrypt.side_effect = lambda x: encrypted[x]
+        self.provider.public_key.encrypt.side_effect = lambda x: encrypted[x]
 
         username = mock.Mock(spec=str)
         user_id = mock.Mock(spec=str)
@@ -212,11 +205,7 @@ class TestCreatePaymentMethod(TestCase):
         request_resource.assert_called_once_with('CreatePaymentMethod', expected_payload)
 
 
-class TestCapture(TestCase):
-    def setUp(self):
-        self.public_key = mock.Mock(spec=PublicKey)
-        self.access_token = mock.Mock(spec=str)
-        self.provider = APIProvider(self.public_key, self.access_token)
+class TestCapture(ProviderBaseMixin, TestCase):
 
     @mock.patch('edenred.providers.APIProvider.request_resource')
     def test_capture(self, request_resource):
@@ -253,11 +242,7 @@ class TestCapture(TestCase):
         request_resource.assert_called_once_with('Capture', expected_payload)
 
 
-class TestAuthorize(TestCase):
-    def setUp(self):
-        self.public_key = mock.Mock(spec=PublicKey)
-        self.access_token = mock.Mock(spec=str)
-        self.provider = APIProvider(self.public_key, self.access_token)
+class TestAuthorize(ProviderBaseMixin, TestCase):
 
     @mock.patch('edenred.providers.APIProvider.request_resource')
     def test_authorize(self, request_resource):
@@ -291,11 +276,7 @@ class TestAuthorize(TestCase):
         request_resource.assert_called_once_with('Authorize', expected_payload)
 
 
-class TestPay(TestCase):
-    def setUp(self):
-        self.public_key = mock.Mock(spec=PublicKey)
-        self.access_token = mock.Mock(spec=str)
-        self.provider = APIProvider(self.public_key, self.access_token)
+class TestPay(ProviderBaseMixin, TestCase):
 
     @mock.patch('edenred.providers.APIProvider.request_resource')
     def test_pay(self, request_resource):

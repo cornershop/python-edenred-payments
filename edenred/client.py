@@ -1,5 +1,8 @@
 
+import os
+
 from .providers import APIProvider
+from .utils import PublicKey
 
 
 class Edenred(object):
@@ -7,8 +10,23 @@ class Edenred(object):
         self.api_provider = api_provider
 
     @staticmethod
-    def create_client(client_id, client_secret, public_key_path, provider_class=APIProvider):
-        api_provider = provider_class.create_for_client(client_id, client_secret, public_key_path)
+    def create_client_from_env():
+        client_id = os.environ['EDENREDPAYMENTS_ID']
+        client_secret = os.environ['EDENREDPAYMENTS_SECRET']
+        public_key_path = os.environ['EDENREDPAYMENTS_PUBLIC_KEY']
+        base_url = os.environ['EDENREDPAYMENTS_URL']
+        testing = bool(os.getenv('EDENREDPAYMENTS_TESTING'))
+        return Edenred.create_client(client_id, client_secret, public_key_path, base_url, testing)
+
+    @staticmethod
+    def create_client(client_id, client_secret, public_key_path, base_url, testing=False):
+        public_key = PublicKey(public_key_path, testing=testing)
+        api_provider = APIProvider(
+            client_id=client_id,
+            client_secret=client_secret,
+            public_key=public_key,
+            base_url=base_url
+        )
         return Edenred(api_provider)
 
     def register_card(self, card_number, cvv, expiration_month, expiration_year, username, user_id):
@@ -27,6 +45,11 @@ class Edenred(object):
 
     def __eq__(self, other):
         return self.api_provider == other.api_provider
+
+    def __repr__(self):
+        return "Edenred({provider})".format(repr(self.provider))
+
+    __str__ = __repr__
 
 
 class Card(object):

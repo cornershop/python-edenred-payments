@@ -12,7 +12,7 @@ from scratch
 ::
 
 	from edenred.client import Edenred
-	edenred = Edenred.create_for_client(client_id, client_secret, public_key_path)
+	edenred = Edenred.create_client(client_id, client_secret, public_key_path, base_url)
 
 	card = edenred.register_card(card_number, cvv, expiration_month, expiration_year, username, user_id)
 	# card = edenred.retrieve_card(card_token)
