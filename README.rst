@@ -2,6 +2,9 @@
 python-edenred-payments
 =======================
 
+.. image:: https://circleci.com/gh/cornershop/python-edenred-payments/tree/master.svg?style=shield
+    :target: https://circleci.com/gh/cornershop/python-edenred-payments/tree/master
+
 python sdk for edenred payment method
 
 Usage
