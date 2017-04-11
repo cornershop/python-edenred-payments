@@ -1,7 +1,7 @@
 
 import requests
 
-from .exceptions import APIError, Unauthorized
+from .exceptions import APIError, Unauthorized, TransactionError
 
 
 class APIProvider(object):
@@ -57,6 +57,7 @@ class APIProvider(object):
         data = self.request_resource('Authorize', payload)
         return data['Authorize']
 
+
     def pay(self, card_token, amount, description):
         payload = {
             "Pay": {
@@ -99,7 +100,7 @@ class APIProvider(object):
 
     def request_resource(self, resource, payload, renew_on_unauthorized=True):
         try:
-            return self.do_request(
+            response = self.do_request(
                 url=self.get_endpoint_url(resource=resource, base_url=self.base_url),
                 headers=self._get_headers(),
                 payload=payload
@@ -109,6 +110,17 @@ class APIProvider(object):
                 self.update_token()
                 return self.request_resource(resource, payload, renew_on_unauthorized=False)
             raise
+        else:
+            self.validate_response(response)
+            return response
+
+    @staticmethod
+    def validate_response(response):
+        if not response.get('Success', True):
+            error_list = response.get('ErrorList') or []
+            for error in error_list:
+                raise TransactionError.create_from_code(error)
+            raise TransactionError()
 
     def update_token(self):
         self.access_token = self.create_access_token(

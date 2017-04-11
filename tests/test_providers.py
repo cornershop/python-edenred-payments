@@ -9,7 +9,9 @@ from requests.exceptions import HTTPError
 
 from edenred.providers import APIProvider
 from edenred.utils import PublicKey
-from edenred.exceptions import APIError, Unauthorized
+from edenred.exceptions import (APIError, Unauthorized,
+                                TransactionError, AccessDenied, InvalidCard,
+                                AuthorizationOngoing, CaptureOngoing, CannotProcess)
 
 
 class TestAPIProvider(TestCase):
@@ -190,6 +192,59 @@ class TestRequestResource(ProviderBaseMixin, TestCase):
 
         with self.assertRaises(Unauthorized, http_error=expected):
             self.provider.request_resource(resource=resource, payload=payload)
+
+    @mock.patch('edenred.providers.APIProvider.validate_response')
+    @mock.patch('edenred.providers.APIProvider.do_request')
+    def test_request_resource_invalid_response(self, do_request, validate_response):
+        validate_response.side_effect = TransactionError
+        resource = mock.Mock(spec=str)
+        payload = mock.Mock(spec=dict)
+
+        with self.assertRaises(TransactionError):
+            self.provider.request_resource(resource=resource, payload=payload)
+
+
+class TestValidateResponses(TestCase):
+    def test_validate_valid_response(self):
+        response = {'Success': True}
+
+        self.assertIsNone(APIProvider.validate_response(response))
+
+    def test_validate_invalid_noerror(self):
+        response = {'Success': False, "ErrorList": None}
+
+        with self.assertRaises(TransactionError):
+            APIProvider.validate_response(response)
+
+    def test_validate_invalid_100(self):
+        response = {'Success': False, "ErrorList": [100]}
+
+        with self.assertRaises(AccessDenied):
+            APIProvider.validate_response(response)
+
+    def test_validate_invalid_101(self):
+        response = {'Success': False, "ErrorList": [101]}
+
+        with self.assertRaises(InvalidCard):
+            APIProvider.validate_response(response)
+
+    def test_validate_invalid_102(self):
+        response = {'Success': False, "ErrorList": [102]}
+
+        with self.assertRaises(AuthorizationOngoing):
+            APIProvider.validate_response(response)
+
+    def test_validate_invalid_103(self):
+        response = {'Success': False, "ErrorList": [103]}
+
+        with self.assertRaises(CaptureOngoing):
+            APIProvider.validate_response(response)
+
+    def test_validate_invalid_104(self):
+        response = {'Success': False, "ErrorList": [104]}
+
+        with self.assertRaises(CannotProcess):
+            APIProvider.validate_response(response)
 
 
 class TestCreatePaymentMethod(ProviderBaseMixin, TestCase):
