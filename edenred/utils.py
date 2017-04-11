@@ -8,8 +8,12 @@ class PublicKey(object):
     def __init__(self, path, testing=False):
         self.path = path
         self.testing = testing
+        self.rsa = self._import_rsa(path)
+
+    @staticmethod
+    def _import_rsa(path):
         with open(path, 'r') as key_file:
-            self.rsa = RSA.importKey(key_file.read())
+            return RSA.importKey(key_file.read())
 
     def encrypt(self, data):
         if self.testing:
