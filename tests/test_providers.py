@@ -69,10 +69,20 @@ class TestAPIProvider(TestCase):
     def test_get_endpoint_url(self):
         base_url = mock.Mock(spec=str)
         resource = mock.Mock(spec=str)
+        action = mock.Mock(spec=str)
 
         self.assertEqual(
-            "{}/{}".format(base_url, resource),
-            APIProvider.get_endpoint_url(resource=resource, base_url=base_url)
+            "{}/{}/{}".format(base_url, resource, action),
+            APIProvider.get_endpoint_url(resource=resource, action=action, base_url=base_url)
+        )
+
+    def test_get_endpoint_url_no_resource(self):
+        base_url = mock.Mock(spec=str)
+        action = mock.Mock(spec=str)
+
+        self.assertEqual(
+            "{}/{}".format(base_url, action),
+            APIProvider.get_endpoint_url(resource=None, action=action, base_url=base_url)
         )
 
     @mock.patch('edenred.providers.APIProvider.get_endpoint_url')
@@ -104,7 +114,7 @@ class TestAPIProvider(TestCase):
             payload=payload,
             headers={'Content-Type': 'application/json; charset=utf-8'}
         )
-        get_endpoint_url.assert_called_once_with(resource='Login', base_url=base_url)
+        get_endpoint_url.assert_called_once_with(resource=None, action='Login', base_url=base_url)
 
 
 class TestDoRequest(TestCase):
@@ -157,14 +167,15 @@ class TestRequestResource(ProviderBaseMixin, TestCase):
     def test_request_resource(self, _get_headers, get_endpoint_url, do_request):
         resource = mock.Mock(spec=str)
         payload = mock.Mock(spec=dict)
+        action = mock.Mock(spec=str)
 
-        result = self.provider.request_resource(resource=resource, payload=payload)
+        result = self.provider.request_resource(resource=resource, action=action, payload=payload)
 
         self.assertEqual(do_request.return_value, result)
         do_request.assert_called_once_with(
             url=get_endpoint_url.return_value, payload=payload, headers=_get_headers.return_value
         )
-        get_endpoint_url.assert_called_once_with(resource=resource, base_url=self.provider.base_url)
+        get_endpoint_url.assert_called_once_with(resource=resource, action=action, base_url=self.provider.base_url)
 
     @mock.patch('edenred.providers.APIProvider.update_token')
     @mock.patch('edenred.providers.APIProvider.do_request')
@@ -172,11 +183,12 @@ class TestRequestResource(ProviderBaseMixin, TestCase):
     @mock.patch('edenred.providers.APIProvider._get_headers')
     def test_request_resource_unauthorized(self, _get_headers, get_endpoint_url, do_request, update_token):
         resource = mock.Mock(spec=str)
+        action = mock.Mock(spec=str)
         payload = mock.Mock(spec=dict)
         expected = mock.Mock()
         do_request.side_effect = [Unauthorized(HTTPError()), expected]
 
-        result = self.provider.request_resource(resource=resource, payload=payload)
+        result = self.provider.request_resource(resource=resource, action=action, payload=payload)
 
         self.assertEqual(expected, result)
 
@@ -187,21 +199,23 @@ class TestRequestResource(ProviderBaseMixin, TestCase):
     def test_request_resource_unauthorized_twice(self, _get_headers, get_endpoint_url, do_request, update_token):
         resource = mock.Mock(spec=str)
         payload = mock.Mock(spec=dict)
+        action = mock.Mock(spec=str)
         expected = HTTPError()
         do_request.side_effect = [Unauthorized(HTTPError()), Unauthorized(expected)]
 
         with self.assertRaises(Unauthorized, http_error=expected):
-            self.provider.request_resource(resource=resource, payload=payload)
+            self.provider.request_resource(resource=resource, action=action, payload=payload)
 
     @mock.patch('edenred.providers.APIProvider.validate_response')
     @mock.patch('edenred.providers.APIProvider.do_request')
     def test_request_resource_invalid_response(self, do_request, validate_response):
         validate_response.side_effect = TransactionError
         resource = mock.Mock(spec=str)
+        action = mock.Mock(spec=str)
         payload = mock.Mock(spec=dict)
 
         with self.assertRaises(TransactionError):
-            self.provider.request_resource(resource=resource, payload=payload)
+            self.provider.request_resource(resource=resource, action=action, payload=payload)
 
 
 class TestValidateResponses(TestCase):
@@ -295,7 +309,9 @@ class TestCreatePaymentMethod(ProviderBaseMixin, TestCase):
             user_id=user_id
         )
         self.assertEqual(request_resource.return_value['PaymentMethod'], result)
-        request_resource.assert_called_once_with('CreatePaymentMethod', expected_payload)
+        request_resource.assert_called_once_with(
+            resource='PaymentMethod', action='Create', payload=expected_payload
+        )
 
 
 class TestCapture(ProviderBaseMixin, TestCase):
@@ -332,7 +348,7 @@ class TestCapture(ProviderBaseMixin, TestCase):
             amount=amount
         )
         self.assertEqual(request_resource.return_value['Capture'], result)
-        request_resource.assert_called_once_with('Capture', expected_payload)
+        request_resource.assert_called_once_with(action='Capture', resource='Payment', payload=expected_payload)
 
 
 class TestAuthorize(ProviderBaseMixin, TestCase):
@@ -366,7 +382,7 @@ class TestAuthorize(ProviderBaseMixin, TestCase):
             description=description
         )
         self.assertEqual(request_resource.return_value['Authorize'], result)
-        request_resource.assert_called_once_with('Authorize', expected_payload)
+        request_resource.assert_called_once_with(action='Authorize', resource='Payment', payload=expected_payload)
 
 
 class TestPay(ProviderBaseMixin, TestCase):
@@ -400,4 +416,42 @@ class TestPay(ProviderBaseMixin, TestCase):
             description=description
         )
         self.assertEqual(request_resource.return_value['Pay'], result)
-        request_resource.assert_called_once_with('Pay', expected_payload)
+        request_resource.assert_called_once_with(action='Pay', resource='Payment', payload=expected_payload)
+
+
+class TestRefund(ProviderBaseMixin, TestCase):
+
+    @mock.patch('edenred.providers.APIProvider.request_resource')
+    def test_capture(self, request_resource):
+        card_token = mock.Mock(spec=str)
+        payment_identifier = mock.Mock(spec=str)
+        resource = 'Payment/{}'.format(payment_identifier)
+        description = mock.Mock(spec=str)
+        amount = mock.Mock(spec=str)
+
+        expected_payload = {
+            "Pay": {
+                "CardToken": card_token,
+                "Amount": amount,
+                "Description": description,
+                "PayIdentifier": payment_identifier
+            }
+        }
+
+        charge_id = mock.Mock(spec=str)
+        request_resource.return_value = {
+            "Pay": {
+                "PaymentIdentifier": charge_id
+            },
+            "Success": True,
+            "ErrorList": []
+        }
+
+        result = self.provider.refund(
+            card_token=card_token,
+            payment_identifier=payment_identifier,
+            description=description,
+            amount=amount
+        )
+        self.assertEqual(request_resource.return_value['Pay'], result)
+        request_resource.assert_called_once_with(action='Refund', resource=resource, payload=expected_payload)

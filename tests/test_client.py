@@ -1,11 +1,12 @@
-import os
+
+from decimal import Decimal
 from unittest import TestCase
 try:
     from unitttest import mock
 except ImportError:
     import mock
 
-from edenred.client import Edenred, Card, Authorization, Charge
+from edenred.client import Edenred, Card, Authorization, Charge, Refund
 from edenred.providers import APIProvider
 
 
@@ -157,7 +158,7 @@ class TestCard(TestCase):
         charge_id = mock.Mock()
         amount = mock.Mock()
         description = mock.Mock()
-        expected = Authorization(charge_id, self.card_token, self.provider)
+        expected = Authorization(charge_id, card, self.provider)
         self.provider.authorize.return_value = {'AuthorizeIdentifier': charge_id}
 
         self.assertEqual(expected, card.authorize(amount, description))
@@ -172,7 +173,7 @@ class TestCard(TestCase):
         charge_id = mock.Mock()
         amount = mock.Mock()
         description = mock.Mock()
-        expected = Charge(charge_id, self.provider)
+        expected = Charge(charge_id, card, self.provider)
         self.provider.pay.return_value = {'PayIdentifier': charge_id}
 
         self.assertEqual(expected, card.capture(amount, description))
@@ -187,35 +188,67 @@ class TestAuthorization(TestCase):
     def setUp(self):
         self.provider = mock.Mock(spec=APIProvider)
         self.charge_id = mock.Mock()
-        self.card_token = mock.Mock()
+        self.card = Card(mock.Mock(spec=str), self.provider)
 
     def test_init(self):
-        authorization = Authorization(self.charge_id, self.card_token, self.provider)
+        authorization = Authorization(self.charge_id, self.card, self.provider)
 
         self.assertEqual(self.provider, authorization.api_provider)
+        self.assertEqual(self.card, authorization.card)
         self.assertEqual(self.charge_id, authorization.charge_id)
 
     def test_capture(self):
-        authorization = Authorization(self.charge_id, self.card_token, self.provider)
+        authorization = Authorization(self.charge_id, self.card, self.provider)
         amount = mock.Mock()
         description = mock.Mock()
-        expected = Charge(self.charge_id, self.provider)
+        expected = Charge(self.charge_id, self.card, self.provider)
         self.provider.capture.return_value = {'CaptureIdentifier': self.charge_id}
 
         self.assertEqual(expected, authorization.capture(amount, description))
         self.provider.capture.assert_called_once_with(
             authorize_identifier=self.charge_id,
-            card_token=self.card_token,
+            card_token=self.card.card_token,
             amount=amount,
             description=description
         )
 
 
-class TestCharge(TestCase):
-    def test_init(self):
-        provider = mock.Mock(spec=APIProvider)
-        charge_id = mock.Mock()
-        charge = Charge(charge_id, provider)
+class TestRefund(TestCase):
+    def setUp(self):
+        self.provider = mock.Mock(spec=APIProvider)
+        self.charge_id = mock.Mock(spec=str)
+        self.card = Card(mock.Mock(spec=str), self.provider)
 
-        self.assertEqual(provider, charge.api_provider)
-        self.assertEqual(charge_id, charge.charge_id)
+    def test_init(self):
+        amount = mock.Mock(spec=Decimal)
+        charge = Charge(self.charge_id, self.card, self.provider)
+
+        refund = Refund(charge, amount, self.provider)
+
+        self.assertEqual(charge, refund.charge)
+        self.assertEqual(amount, refund.amount)
+
+    def test_refund(self):
+        charge = Charge(self.charge_id, self.card, self.provider)
+        amount = mock.Mock(spec=Decimal)
+        description = mock.Mock(spec=str)
+        amount_response = "1010101"
+        self.provider.refund.return_value = {'Amount': amount_response}
+
+        refund = charge.refund(amount, description)
+
+        self.assertEqual(charge, refund.charge)
+        self.assertEqual(Decimal(amount_response), refund.amount)
+
+
+class TestCharge(TestCase):
+    def setUp(self):
+        self.provider = mock.Mock(spec=APIProvider)
+        self.charge_id = mock.Mock(spec=str)
+        self.card = mock.Mock(spec=Card)
+
+    def test_init(self):
+        charge = Charge(self.charge_id, self.card, self.provider)
+
+        self.assertEqual(self.provider, charge.api_provider)
+        self.assertEqual(self.charge_id, charge.charge_id)

@@ -1,5 +1,6 @@
 
 import os
+from decimal import Decimal
 
 from .providers import APIProvider
 from .utils import PublicKey
@@ -66,7 +67,7 @@ class Card(object):
             amount=amount,
             description=description
         )
-        return Authorization(response['AuthorizeIdentifier'], self.card_token, self.api_provider)
+        return Authorization(response['AuthorizeIdentifier'], self, self.api_provider)
 
     def capture(self, amount, description):
         response = self.api_provider.pay(
@@ -74,35 +75,56 @@ class Card(object):
             amount=amount,
             description=description
         )
-        return Charge(response['PayIdentifier'], self.api_provider)
+        return Charge(response['PayIdentifier'], self, self.api_provider)
 
     def __eq__(self, other):
         return self.api_provider == other.api_provider and self.card_token == other.card_token
 
 
 class Authorization(object):
-    def __init__(self, charge_id, card_token, api_provider):
+    def __init__(self, charge_id, card, api_provider):
         self.api_provider = api_provider
         self.charge_id = charge_id
-        self.card_token = card_token
+        self.card = card
 
     def capture(self, amount, description):
         response = self.api_provider.capture(
-            card_token=self.card_token,
+            card_token=self.card.card_token,
             authorize_identifier=self.charge_id,
             amount=amount,
             description=description
         )
-        return Charge(response['CaptureIdentifier'], self.api_provider)
+        return Charge(response['CaptureIdentifier'], self.card, self.api_provider)
 
     def __eq__(self, other):
-        return self.api_provider == other.api_provider and self.charge_id == other.charge_id
+        return self.api_provider == other.api_provider \
+            and self.charge_id == other.charge_id \
+            and self.card == other.card
 
 
 class Charge(object):
-    def __init__(self, charge_id, api_provider):
+    def __init__(self, charge_id, card, api_provider):
         self.api_provider = api_provider
         self.charge_id = charge_id
+        self.card = card
+
+    def refund(self, amount, description):
+        response = self.api_provider.refund(
+            card_token=self.card.card_token,
+            payment_identifier=self.charge_id,
+            amount=amount,
+            description=description
+        )
+        return Refund(self, Decimal(response['Amount']), self.api_provider)
 
     def __eq__(self, other):
-        return self.api_provider == other.api_provider and self.charge_id == other.charge_id
+        return self.api_provider == other.api_provider \
+            and self.charge_id == other.charge_id \
+            and self.card == other.card
+
+
+class Refund(object):
+    def __init__(self, charge, amount, api_provider):
+        self.api_provider = api_provider
+        self.charge = charge
+        self.amount = amount

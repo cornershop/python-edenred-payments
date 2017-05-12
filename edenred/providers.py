@@ -16,7 +16,7 @@ class APIProvider(object):
 
     @staticmethod
     def create_access_token(client_id, client_secret, public_key, base_url):
-        login_url = APIProvider.get_endpoint_url(resource='Login', base_url=base_url)
+        login_url = APIProvider.get_endpoint_url(resource=None, action='Login', base_url=base_url)
         payload = {
             "Security": {
                 "ClientIdentifier": client_id,
@@ -29,8 +29,10 @@ class APIProvider(object):
         return response['access_token']
 
     @staticmethod
-    def get_endpoint_url(base_url, resource):
-        return "{}/{}".format(base_url, resource)
+    def get_endpoint_url(base_url, resource, action):
+        if resource is not None:
+            return "{}/{}/{}".format(base_url, resource, action)
+        return "{}/{}".format(base_url, action)
 
     @staticmethod
     def do_request(url, headers, payload):
@@ -54,9 +56,8 @@ class APIProvider(object):
                 "AuthorizeIdentifier": None
             }
         }
-        data = self.request_resource('Authorize', payload)
+        data = self.request_resource(resource='Payment', action='Authorize', payload=payload)
         return data['Authorize']
-
 
     def pay(self, card_token, amount, description):
         payload = {
@@ -67,7 +68,7 @@ class APIProvider(object):
                 "PayIdentifier": None
             }
         }
-        data = self.request_resource('Pay', payload)
+        data = self.request_resource(resource='Payment', action='Pay', payload=payload)
         return data['Pay']
 
     def capture(self, card_token, authorize_identifier, amount, description):
@@ -80,8 +81,21 @@ class APIProvider(object):
                 "CaptureIdentifier": None
             }
         }
-        data = self.request_resource('Capture', payload)
+        data = self.request_resource(resource='Payment', action='Capture', payload=payload)
         return data['Capture']
+
+    def refund(self, card_token, payment_identifier, amount, description):
+        payload = {
+            "Pay": {
+                "CardToken": card_token,
+                "Amount": amount,
+                "Description": description,
+                "PayIdentifier": payment_identifier
+            }
+        }
+        resource = 'Payment/{}'.format(payment_identifier)
+        data = self.request_resource(resource=resource, action='Refund', payload=payload)
+        return data['Pay']
 
     def create_payment_method(self, card_number, cvv, expiration_month, expiration_year, username, user_id):
         payload = {
@@ -95,20 +109,22 @@ class APIProvider(object):
                 "CardToken": None
             }
         }
-        data = self.request_resource('CreatePaymentMethod', payload)
+        data = self.request_resource(resource='PaymentMethod', action='Create', payload=payload)
         return data['PaymentMethod']
 
-    def request_resource(self, resource, payload, renew_on_unauthorized=True):
+    def request_resource(self, resource, action, payload, renew_on_unauthorized=True):
         try:
             response = self.do_request(
-                url=self.get_endpoint_url(resource=resource, base_url=self.base_url),
+                url=self.get_endpoint_url(resource=resource, action=action, base_url=self.base_url),
                 headers=self._get_headers(),
                 payload=payload
             )
         except Unauthorized:
             if renew_on_unauthorized:
                 self.update_token()
-                return self.request_resource(resource, payload, renew_on_unauthorized=False)
+                return self.request_resource(
+                    resource=resource, action=action, payload=payload, renew_on_unauthorized=False
+                )
             raise
         else:
             self.validate_response(response)
