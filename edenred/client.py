@@ -48,7 +48,7 @@ class Edenred(object):
         return self.api_provider == other.api_provider
 
     def __repr__(self):
-        return "Edenred({provider})".format(repr(self.provider))
+        return "Edenred({provider})".format(provider=repr(self.api_provider))
 
     __str__ = __repr__
 

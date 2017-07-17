@@ -9,9 +9,7 @@ from requests.exceptions import HTTPError
 
 from edenred.providers import APIProvider
 from edenred.utils import PublicKey
-from edenred.exceptions import (APIError, Unauthorized,
-                                TransactionError, AccessDenied, InvalidCard,
-                                AuthorizationOngoing, CaptureOngoing, CannotProcess)
+from edenred.exceptions import APIError, TransactionErrors, Unauthorized
 
 
 class TestAPIProvider(TestCase):
@@ -40,7 +38,7 @@ class TestAPIProvider(TestCase):
         )
         provider.access_token = mock.Mock(spec=str)
         expected = {
-            'access_token': provider.access_token,
+            'authorization': provider.access_token,
             'Content-Type': 'application/json; charset=utf-8'
         }
 
@@ -56,7 +54,7 @@ class TestAPIProvider(TestCase):
             client_id=client_id, client_secret=client_secret, base_url=base_url, public_key=public_key
         )
         expected = {
-            'access_token': create_access_token.return_value,
+            'authorization': create_access_token.return_value,
             'Content-Type': 'application/json; charset=utf-8'
         }
 
@@ -129,7 +127,7 @@ class TestDoRequest(TestCase):
         result = APIProvider.do_request(url=url, headers=headers, payload=payload)
 
         self.assertEqual(requests.post.return_value.json.return_value, result)
-        requests.post.assert_called_once_with(url, data=payload, headers=headers)
+        requests.post.assert_called_once_with(url, json=payload, headers=headers)
         response.raise_for_status.assert_called_once_with()
 
     @mock.patch('edenred.providers.requests.post')
@@ -138,9 +136,9 @@ class TestDoRequest(TestCase):
         headers = mock.Mock(spec=dict)
         url = mock.Mock(spec=str)
         response = requests_post.return_value
-        response.raise_for_status.side_effect = HTTPError(response=mock.Mock())
+        response.raise_for_status.side_effect = HTTPError(response=response)
 
-        with self.assertRaises(APIError, http_error=response.raise_for_status.side_effect):
+        with self.assertRaises(APIError):
             APIProvider.do_request(url=url, headers=headers, payload=payload)
 
 
@@ -168,6 +166,7 @@ class TestRequestResource(ProviderBaseMixin, TestCase):
         resource = mock.Mock(spec=str)
         payload = mock.Mock(spec=dict)
         action = mock.Mock(spec=str)
+        do_request.return_value = {'Success': True}
 
         result = self.provider.request_resource(resource=resource, action=action, payload=payload)
 
@@ -185,8 +184,8 @@ class TestRequestResource(ProviderBaseMixin, TestCase):
         resource = mock.Mock(spec=str)
         action = mock.Mock(spec=str)
         payload = mock.Mock(spec=dict)
-        expected = mock.Mock()
-        do_request.side_effect = [Unauthorized(HTTPError()), expected]
+        expected = {'Success': True}
+        do_request.side_effect = [Unauthorized(mock.Mock()), expected]
 
         result = self.provider.request_resource(resource=resource, action=action, payload=payload)
 
@@ -200,64 +199,59 @@ class TestRequestResource(ProviderBaseMixin, TestCase):
         resource = mock.Mock(spec=str)
         payload = mock.Mock(spec=dict)
         action = mock.Mock(spec=str)
-        expected = HTTPError()
-        do_request.side_effect = [Unauthorized(HTTPError()), Unauthorized(expected)]
+        expected = mock.Mock()
+        do_request.side_effect = [Unauthorized(mock.Mock()), Unauthorized(expected)]
 
-        with self.assertRaises(Unauthorized, http_error=expected):
+        with self.assertRaises(Unauthorized):
             self.provider.request_resource(resource=resource, action=action, payload=payload)
+        self.assertEqual(2, do_request.call_count)
 
     @mock.patch('edenred.providers.APIProvider.validate_response')
     @mock.patch('edenred.providers.APIProvider.do_request')
     def test_request_resource_invalid_response(self, do_request, validate_response):
-        validate_response.side_effect = TransactionError
+        validate_response.side_effect = TransactionErrors({}, [])
         resource = mock.Mock(spec=str)
         action = mock.Mock(spec=str)
         payload = mock.Mock(spec=dict)
 
-        with self.assertRaises(TransactionError):
+        with self.assertRaises(TransactionErrors):
             self.provider.request_resource(resource=resource, action=action, payload=payload)
 
 
 class TestValidateResponses(TestCase):
+    def create_response(self, data, status_code=200):
+        response = mock.Mock()
+        response.json.return_value = data
+        response.status_code = status_code
+        return data
+
     def test_validate_valid_response(self):
-        response = {'Success': True}
+        response = self.create_response({'Success': True, "ErrorList": None})
 
         self.assertIsNone(APIProvider.validate_response(response))
 
-    def test_validate_invalid_noerror(self):
-        response = {'Success': False, "ErrorList": None}
+    def test_validate_invalid_no_errors(self):
+        response = self.create_response({'Success': False, "ErrorList": None})
 
-        with self.assertRaises(TransactionError):
+        with self.assertRaises(TransactionErrors):
             APIProvider.validate_response(response)
 
-    def test_validate_invalid_100(self):
-        response = {'Success': False, "ErrorList": [100]}
+    def test_validate_invalid_empty_errors(self):
+        response = self.create_response({'Success': False, "ErrorList": []})
 
-        with self.assertRaises(AccessDenied):
+        with self.assertRaises(TransactionErrors):
             APIProvider.validate_response(response)
 
-    def test_validate_invalid_101(self):
-        response = {'Success': False, "ErrorList": [101]}
+    def test_validate_invalid_errors(self):
+        response = self.create_response({
+            'Success': False,
+            "ErrorList": [
+                {'Code': "ER104", 'Message': "Error 104"},
+                {'Code': "ER101", 'Message': "Error 101"},
+            ]
+        })
 
-        with self.assertRaises(InvalidCard):
-            APIProvider.validate_response(response)
-
-    def test_validate_invalid_102(self):
-        response = {'Success': False, "ErrorList": [102]}
-
-        with self.assertRaises(AuthorizationOngoing):
-            APIProvider.validate_response(response)
-
-    def test_validate_invalid_103(self):
-        response = {'Success': False, "ErrorList": [103]}
-
-        with self.assertRaises(CaptureOngoing):
-            APIProvider.validate_response(response)
-
-    def test_validate_invalid_104(self):
-        response = {'Success': False, "ErrorList": [104]}
-
-        with self.assertRaises(CannotProcess):
+        with self.assertRaises(TransactionErrors):
             APIProvider.validate_response(response)
 
 
@@ -287,7 +281,7 @@ class TestCreatePaymentMethod(ProviderBaseMixin, TestCase):
                 "CardExpirationYear": encrypted[expiration_year],
                 "UserLogin": username,
                 "UserIdentifier": user_id,
-                "CardToken": None
+                "CardToken": ""
             }
         }
 
@@ -329,7 +323,7 @@ class TestCapture(ProviderBaseMixin, TestCase):
                 "Amount": amount,
                 "Description": description,
                 "AuthorizeIdentifier": authorize_identifier,
-                "CaptureIdentifier": None
+                "CaptureIdentifier": ""
             }
         }
         charge_id = mock.Mock(spec=str)
@@ -364,7 +358,7 @@ class TestAuthorize(ProviderBaseMixin, TestCase):
                 "CardToken": card_token,
                 "Amount": amount,
                 "Description": description,
-                "AuthorizeIdentifier": None
+                "AuthorizeIdentifier": ""
             }
         }
         charge_id = mock.Mock(spec=str)
@@ -398,7 +392,7 @@ class TestPay(ProviderBaseMixin, TestCase):
                 "CardToken": card_token,
                 "Amount": amount,
                 "Description": description,
-                "PayIdentifier": None
+                "PayIdentifier": ""
             }
         }
         charge_id = mock.Mock(spec=str)

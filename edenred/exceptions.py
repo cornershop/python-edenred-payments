@@ -3,74 +3,44 @@ from __future__ import unicode_literals
 
 
 class APIError(Exception):
-    ERROR_CODE = None
-    ERROR_MESSAGE = 'API Error'
 
-    def __init__(self, http_error):
-        super(APIError, self).__init__(self.ERROR_MESSAGE)
-        self.http_error = http_error
+    def __init__(self, response, description):
+        super(APIError, self).__init__(response.status_code, description)
+        self.response = response
+        self.description = description
 
-    def get_error_message(self):
-        meta = self.http_error.response.json()['meta']
-        for message in meta['messages']:
-            if message['code'] == self.ERROR_CODE:
-                return message['message']
-        return meta['status']
+    @property
+    def status_code(self):
+        return self.response.status_code
 
     @staticmethod
     def create_from_http_error(error):
-        if error.response.status_code == Unauthorized.status_code:
-            return Unauthorized(error)
-        return APIError(error)
+        if error.response.status_code == '403':
+            return Unauthorized(error.response)
+        if error.response.status_code == '401':
+            return InvalidCredentials(error.response)
+        return APIError(error.response, "Unknown Error")
+
+
+class InvalidCredentials(APIError):
+    def __init__(self, response):
+        super(InvalidCredentials, self).__init__(response, "Invalid Credentials")
 
 
 class Unauthorized(APIError):
-    status_code = 401
+    def __init__(self, response):
+        super(Unauthorized, self).__init__(response, "Unauthorized")
 
 
-class TransactionError(Exception):
-    code = 99
-    description = "Error desconocido"
+class TransactionErrors(Exception):
 
-    def __init__(self, code=None):
-        if code is not None:
-            self.code = code
-        super(TransactionError, self).__init__(self.description)
+    def __init__(self, response, errors):
+        error_message = self.extract_error_message(errors)
+        super(TransactionErrors, self).__init__(error_message, *[error['Code'] for error in errors])
+        self.errors = errors
+        self.response = response
 
-    @staticmethod
-    def create_from_code(code):
-        if code == AccessDenied.code:
-            return AccessDenied()
-        elif code == InvalidCard.code:
-            return InvalidCard()
-        elif code == AuthorizationOngoing.code:
-            return AuthorizationOngoing()
-        elif code == CaptureOngoing.code:
-            return CaptureOngoing()
-        elif code == CannotProcess.code:
-            return CannotProcess()
-
-
-class AccessDenied(TransactionError):
-    code = 100
-    description = "Sin acceso al recurso"
-
-
-class InvalidCard(TransactionError):
-    code = 101
-    description = "Tarjeta no valida, bloqueada, sin saldo, datos de verifación incorrectos"
-
-
-class AuthorizationOngoing(TransactionError):
-    code = 102
-    description = "Autorización en curso"
-
-
-class CaptureOngoing(TransactionError):
-    code = 103
-    description = "Captura en curso"
-
-
-class CannotProcess(TransactionError):
-    code = 104
-    description = "No se pudo procesar la operación"
+    @classmethod
+    def extract_error_message(cls, errors):
+        sorted_errors = sorted(errors, key=lambda error: error['Code'])
+        return sorted_errors[0]['Message'] if len(sorted_errors) > 0 else "Error desconocido"

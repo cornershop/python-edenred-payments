@@ -1,7 +1,11 @@
 
+import logging
+
 import requests
 
-from .exceptions import APIError, Unauthorized, TransactionError
+from .exceptions import APIError, Unauthorized, TransactionErrors
+
+logger = logging.getLogger(__name__)
 
 
 class APIProvider(object):
@@ -26,6 +30,8 @@ class APIProvider(object):
         response = APIProvider.do_request(
             url=login_url, payload=payload, headers={'Content-Type': APIProvider.CONTENT_TYPE}
         )
+        print (response)
+        APIProvider.validate_response(response)
         return response['access_token']
 
     @staticmethod
@@ -37,9 +43,10 @@ class APIProvider(object):
     @staticmethod
     def do_request(url, headers, payload):
         try:
+            logger.debug(payload)
             response = requests.post(
                 url,
-                data=payload,
+                json=payload,
                 headers=headers
             )
             response.raise_for_status()
@@ -53,7 +60,7 @@ class APIProvider(object):
                 "CardToken": card_token,
                 "Amount": amount,
                 "Description": description,
-                "AuthorizeIdentifier": None
+                "AuthorizeIdentifier": ""
             }
         }
         data = self.request_resource(resource='Payment', action='Authorize', payload=payload)
@@ -65,7 +72,7 @@ class APIProvider(object):
                 "CardToken": card_token,
                 "Amount": amount,
                 "Description": description,
-                "PayIdentifier": None
+                "PayIdentifier": ""
             }
         }
         data = self.request_resource(resource='Payment', action='Pay', payload=payload)
@@ -78,7 +85,7 @@ class APIProvider(object):
                 "Amount": amount,
                 "Description": description,
                 "AuthorizeIdentifier": authorize_identifier,
-                "CaptureIdentifier": None
+                "CaptureIdentifier": ""
             }
         }
         data = self.request_resource(resource='Payment', action='Capture', payload=payload)
@@ -106,7 +113,7 @@ class APIProvider(object):
                 "CardExpirationYear": self.public_key.encrypt(expiration_year),
                 "UserLogin": username,
                 "UserIdentifier": user_id,
-                "CardToken": None
+                "CardToken": ""
             }
         }
         data = self.request_resource(resource='PaymentMethod', action='Create', payload=payload)
@@ -130,13 +137,11 @@ class APIProvider(object):
             self.validate_response(response)
             return response
 
-    @staticmethod
-    def validate_response(response):
-        if not response.get('Success', True):
-            error_list = response.get('ErrorList') or []
-            for error in error_list:
-                raise TransactionError.create_from_code(error)
-            raise TransactionError()
+    @classmethod
+    def validate_response(cls, response):
+        if not response.get('Success', False):
+            errors = response.get('ErrorList') or []
+            raise TransactionErrors(response, errors)
 
     def update_token(self):
         self.access_token = self.create_access_token(
@@ -151,5 +156,5 @@ class APIProvider(object):
             self.update_token()
         return {
             'Content-Type': APIProvider.CONTENT_TYPE,
-            'access_token': self.access_token
+            'authorization': self.access_token
         }

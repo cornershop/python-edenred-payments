@@ -18,8 +18,8 @@ class PublicKey(object):
     def encrypt(self, data):
         if self.testing:
             return data
-        encrypted = self.rsa.encrypt(data, None)[0]
-        return b64encode(encrypted)
+        encrypted = self.rsa.encrypt(data.encode(), None)[0]
+        return b64encode(encrypted).decode()
 
     def __eq__(self, other):
         return self.rsa == other.rsa and self.testing == other.testing
