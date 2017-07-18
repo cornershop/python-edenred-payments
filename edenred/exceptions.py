@@ -15,9 +15,9 @@ class APIError(Exception):
 
     @staticmethod
     def create_from_http_error(error):
-        if error.response.status_code == '403':
+        if error.response.status_code == 403:
             return Unauthorized(error.response)
-        if error.response.status_code == '401':
+        if error.response.status_code == 401:
             return InvalidCredentials(error.response)
         return APIError(error.response, "Unknown Error")
 

@@ -1,7 +1,8 @@
 README.html
 *.csv
 *.pem
-*.pvt
+*.xml
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

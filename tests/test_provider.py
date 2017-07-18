@@ -323,13 +323,12 @@ class TestCapture(ProviderBaseMixin, TestCase):
                 "Amount": amount,
                 "Description": description,
                 "AuthorizeIdentifier": authorize_identifier,
-                "CaptureIdentifier": ""
             }
         }
         charge_id = mock.Mock(spec=str)
         request_resource.return_value = {
             "Capture": {
-                "CaptureIdentifier": charge_id
+                "AuthorizeIdentifier": charge_id
             },
             "Success": True,
             "ErrorList": []
@@ -358,7 +357,6 @@ class TestAuthorize(ProviderBaseMixin, TestCase):
                 "CardToken": card_token,
                 "Amount": amount,
                 "Description": description,
-                "AuthorizeIdentifier": ""
             }
         }
         charge_id = mock.Mock(spec=str)
@@ -392,13 +390,12 @@ class TestPay(ProviderBaseMixin, TestCase):
                 "CardToken": card_token,
                 "Amount": amount,
                 "Description": description,
-                "PayIdentifier": ""
             }
         }
         charge_id = mock.Mock(spec=str)
         request_resource.return_value = {
             "Pay": {
-                "PayIdentifier": charge_id
+                "AuthorizeIdentifier": charge_id
             },
             "Success": True,
             "ErrorList": []
@@ -416,7 +413,7 @@ class TestPay(ProviderBaseMixin, TestCase):
 class TestRefund(ProviderBaseMixin, TestCase):
 
     @mock.patch('edenred.providers.APIProvider.request_resource')
-    def test_capture(self, request_resource):
+    def test_refund(self, request_resource):
         card_token = mock.Mock(spec=str)
         payment_identifier = mock.Mock(spec=str)
         resource = 'Payment/{}'.format(payment_identifier)
@@ -432,11 +429,8 @@ class TestRefund(ProviderBaseMixin, TestCase):
             }
         }
 
-        charge_id = mock.Mock(spec=str)
         request_resource.return_value = {
-            "Pay": {
-                "PaymentIdentifier": charge_id
-            },
+            "Pay": mock.Mock(spec=dict),
             "Success": True,
             "ErrorList": []
         }

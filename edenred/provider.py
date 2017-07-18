@@ -18,32 +18,32 @@ class APIProvider(object):
         self.base_url = base_url
         self.access_token = None
 
-    @staticmethod
-    def create_access_token(client_id, client_secret, public_key, base_url):
-        login_url = APIProvider.get_endpoint_url(resource=None, action='Login', base_url=base_url)
+    @classmethod
+    def create_access_token(cls, client_id, client_secret, public_key, base_url):
+        logger.debug("Retrieving Edenred access_token")
+        login_url = cls.get_endpoint_url(resource=None, action='Login', base_url=base_url)
         payload = {
             "Security": {
                 "ClientIdentifier": client_id,
                 "ClientSecret": client_secret
             }
         }
-        response = APIProvider.do_request(
-            url=login_url, payload=payload, headers={'Content-Type': APIProvider.CONTENT_TYPE}
+        response = cls.do_request(
+            url=login_url, payload=payload, headers={'Content-Type': cls.CONTENT_TYPE}
         )
-        print (response)
-        APIProvider.validate_response(response)
+        cls.validate_response(response)
         return response['access_token']
 
-    @staticmethod
-    def get_endpoint_url(base_url, resource, action):
+    @classmethod
+    def get_endpoint_url(cls, base_url, resource, action):
         if resource is not None:
             return "{}/{}/{}".format(base_url, resource, action)
         return "{}/{}".format(base_url, action)
 
-    @staticmethod
-    def do_request(url, headers, payload):
+    @classmethod
+    def do_request(cls, url, headers, payload):
         try:
-            logger.debug(payload)
+            logger.debug("Requesting %s", url)
             response = requests.post(
                 url,
                 json=payload,
@@ -54,13 +54,37 @@ class APIProvider(object):
         except requests.exceptions.HTTPError as http_error:
             raise APIError.create_from_http_error(http_error)
 
+    @classmethod
+    def validate_response(cls, response):
+        if not response.get('Success', False):
+            errors = response.get('ErrorList') or []
+            raise TransactionErrors(response, errors)
+
+    def request_resource(self, resource, action, payload, renew_on_unauthorized=True):
+        try:
+            response = self.do_request(
+                url=self.get_endpoint_url(resource=resource, action=action, base_url=self.base_url),
+                headers=self._get_headers(),
+                payload=payload
+            )
+        except Unauthorized:
+            if renew_on_unauthorized:
+                self.update_token()
+                return self.request_resource(
+                    resource=resource, action=action, payload=payload, renew_on_unauthorized=False
+                )
+            raise
+        else:
+            logger.debug('Response: %s', response)
+            self.validate_response(response)
+            return response
+
     def authorize(self, card_token, amount, description):
         payload = {
             "Authorize": {
                 "CardToken": card_token,
                 "Amount": amount,
                 "Description": description,
-                "AuthorizeIdentifier": ""
             }
         }
         data = self.request_resource(resource='Payment', action='Authorize', payload=payload)
@@ -72,7 +96,6 @@ class APIProvider(object):
                 "CardToken": card_token,
                 "Amount": amount,
                 "Description": description,
-                "PayIdentifier": ""
             }
         }
         data = self.request_resource(resource='Payment', action='Pay', payload=payload)
@@ -84,8 +107,7 @@ class APIProvider(object):
                 "CardToken": card_token,
                 "Amount": amount,
                 "Description": description,
-                "AuthorizeIdentifier": authorize_identifier,
-                "CaptureIdentifier": ""
+                "AuthorizeIdentifier": authorize_identifier
             }
         }
         data = self.request_resource(resource='Payment', action='Capture', payload=payload)
@@ -119,30 +141,6 @@ class APIProvider(object):
         data = self.request_resource(resource='PaymentMethod', action='Create', payload=payload)
         return data['PaymentMethod']
 
-    def request_resource(self, resource, action, payload, renew_on_unauthorized=True):
-        try:
-            response = self.do_request(
-                url=self.get_endpoint_url(resource=resource, action=action, base_url=self.base_url),
-                headers=self._get_headers(),
-                payload=payload
-            )
-        except Unauthorized:
-            if renew_on_unauthorized:
-                self.update_token()
-                return self.request_resource(
-                    resource=resource, action=action, payload=payload, renew_on_unauthorized=False
-                )
-            raise
-        else:
-            self.validate_response(response)
-            return response
-
-    @classmethod
-    def validate_response(cls, response):
-        if not response.get('Success', False):
-            errors = response.get('ErrorList') or []
-            raise TransactionErrors(response, errors)
-
     def update_token(self):
         self.access_token = self.create_access_token(
             client_id=self.client_id,
@@ -155,6 +153,6 @@ class APIProvider(object):
         if self.access_token is None:
             self.update_token()
         return {
-            'Content-Type': APIProvider.CONTENT_TYPE,
+            'Content-Type': self.CONTENT_TYPE,
             'authorization': self.access_token
         }

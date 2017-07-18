@@ -1,8 +1,8 @@
 
 import os
-from decimal import Decimal
+import decimal
 
-from .providers import APIProvider
+from .provider import APIProvider
 from .utils import PublicKey
 
 
@@ -55,7 +55,7 @@ class Edenred(object):
     def __eq__(self, other):
         return self.api_provider == other.api_provider
 
-    def __repr__(self):
+    def __repr__(self):  # pragma: no cover
         return "Edenred({provider})".format(provider=repr(self.api_provider))
 
     __str__ = __repr__
@@ -84,7 +84,7 @@ class Card(object):
             amount=amount_in_cents(amount),
             description=description
         )
-        return Charge(response['PayIdentifier'], self, self.api_provider)
+        return Charge(response['AuthorizeIdentifier'], self, self.api_provider)
 
     def __eq__(self, other):
         return self.api_provider == other.api_provider and self.card_token == other.card_token
@@ -103,7 +103,7 @@ class Authorization(object):
             amount=amount_in_cents(amount),
             description=description
         )
-        return Charge(response['CaptureIdentifier'], self.card, self.api_provider)
+        return Charge(response['AuthorizeIdentifier'], self.card, self.api_provider)
 
     def __eq__(self, other):
         return self.api_provider == other.api_provider \

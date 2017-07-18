@@ -1,7 +1,8 @@
 
-from base64 import b64encode
+import base64
 
-from Crypto.PublicKey import RSA
+import Crypto.PublicKey.RSA
+import Crypto.Cipher.PKCS1_v1_5
 
 
 class PublicKey(object):
@@ -13,13 +14,26 @@ class PublicKey(object):
     @staticmethod
     def _import_rsa(path):
         with open(path, 'r') as key_file:
-            return RSA.importKey(key_file.read())
+            return Crypto.PublicKey.RSA.importKey(key_file.read())
 
     def encrypt(self, data):
         if self.testing:
             return data
-        encrypted = self.rsa.encrypt(data.encode(), None)[0]
-        return b64encode(encrypted).decode()
+        encrypted = self.cipher.encrypt(data.encode())
+        return base64.b64encode(encrypted).decode()
+
+    @property
+    def cipher(self):
+        return self._cipher
+
+    @property
+    def rsa(self):
+        return self._rsa
+
+    @rsa.setter
+    def rsa(self, rsa):
+        self._rsa = rsa
+        self._cipher = Crypto.Cipher.PKCS1_v1_5.new(rsa)
 
     def __eq__(self, other):
         return self.rsa == other.rsa and self.testing == other.testing

@@ -176,7 +176,7 @@ class TestCard(TestCase):
         amount = Decimal('123.45')
         description = mock.Mock()
         expected = Charge(charge_id, card, self.provider)
-        self.provider.pay.return_value = {'PayIdentifier': charge_id}
+        self.provider.pay.return_value = {'AuthorizeIdentifier': charge_id}
 
         self.assertEqual(expected, card.capture(self.amount, description))
         self.provider.pay.assert_called_once_with(
@@ -206,7 +206,7 @@ class TestAuthorization(TestCase):
         amount = mock.Mock()
         description = mock.Mock()
         expected = Charge(self.charge_id, self.card, self.provider)
-        self.provider.capture.return_value = {'CaptureIdentifier': self.charge_id}
+        self.provider.capture.return_value = {'AuthorizeIdentifier': self.charge_id}
 
         self.assertEqual(expected, authorization.capture(self.amount, description))
         self.provider.capture.assert_called_once_with(
