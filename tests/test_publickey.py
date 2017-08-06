@@ -11,7 +11,7 @@ except ImportError:
 import Crypto.PublicKey.RSA
 import Crypto.Cipher.PKCS1_v1_5
 
-from edenred.utils import PublicKey
+from edenred.publickey import PublicKey
 
 PRIVATE_KEY = """\
 -----BEGIN RSA PRIVATE KEY-----

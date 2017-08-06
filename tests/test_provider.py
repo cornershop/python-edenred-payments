@@ -8,7 +8,7 @@ except ImportError:
 import requests.exceptions
 
 from edenred.provider import APIProvider
-from edenred.utils import PublicKey
+from edenred.publickey import PublicKey
 from edenred.exceptions import APIError, TransactionErrors, Unauthorized
 
 
@@ -19,8 +19,30 @@ class TestAPIProvider(unittest.TestCase):
         base_url = mock.Mock(spec=str)
         client_id = mock.Mock(spec=str)
         client_secret = mock.Mock(spec=str)
+        access_token = mock.Mock(spec=str)
         provider = APIProvider(
-            client_id=client_id, client_secret=client_secret, base_url=base_url, public_key=public_key
+            client_id=client_id,
+            client_secret=client_secret,
+            base_url=base_url,
+            public_key=public_key,
+            access_token=access_token
+        )
+
+        self.assertEqual(client_id, provider.client_id)
+        self.assertEqual(client_secret, provider.client_secret)
+        self.assertEqual(public_key, provider.public_key)
+        self.assertEqual(access_token, provider.access_token)
+
+    def test_init_no_access_token(self):
+        public_key = mock.Mock(spec=PublicKey)
+        base_url = mock.Mock(spec=str)
+        client_id = mock.Mock(spec=str)
+        client_secret = mock.Mock(spec=str)
+        provider = APIProvider(
+            client_id=client_id,
+            client_secret=client_secret,
+            base_url=base_url,
+            public_key=public_key
         )
 
         self.assertEqual(client_id, provider.client_id)
@@ -33,12 +55,16 @@ class TestAPIProvider(unittest.TestCase):
         base_url = mock.Mock(spec=str)
         client_id = mock.Mock(spec=str)
         client_secret = mock.Mock(spec=str)
+        access_token = mock.Mock(spec=str)
         provider = APIProvider(
-            client_id=client_id, client_secret=client_secret, base_url=base_url, public_key=public_key
+            client_id=client_id,
+            client_secret=client_secret,
+            base_url=base_url,
+            public_key=public_key,
+            access_token=access_token
         )
-        provider.access_token = mock.Mock(spec=str)
         expected = {
-            'authorization': provider.access_token,
+            'authorization': access_token,
             'Content-Type': 'application/json; charset=utf-8'
         }
 

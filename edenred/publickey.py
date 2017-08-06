@@ -1,9 +1,6 @@
 
 import base64
 
-import Crypto.PublicKey.RSA
-import Crypto.Cipher.PKCS1_v1_5
-
 
 class PublicKey(object):
     def __init__(self, path, testing=False):
@@ -13,6 +10,8 @@ class PublicKey(object):
 
     @staticmethod
     def _import_rsa(path):
+        import Crypto.PublicKey.RSA
+
         with open(path, 'r') as key_file:
             return Crypto.PublicKey.RSA.importKey(key_file.read())
 
@@ -32,6 +31,7 @@ class PublicKey(object):
 
     @rsa.setter
     def rsa(self, rsa):
+        import Crypto.Cipher.PKCS1_v1_5
         self._rsa = rsa
         self._cipher = Crypto.Cipher.PKCS1_v1_5.new(rsa)
 

@@ -11,12 +11,12 @@ logger = logging.getLogger(__name__)
 class APIProvider(object):
     CONTENT_TYPE = 'application/json; charset=utf-8'
 
-    def __init__(self, client_id, client_secret, base_url, public_key):
+    def __init__(self, client_id, client_secret, base_url, public_key, access_token=None):
         self.public_key = public_key
         self.client_id = client_id
         self.client_secret = client_secret
         self.base_url = base_url
-        self.access_token = None
+        self.access_token = access_token
 
     @classmethod
     def create_access_token(cls, client_id, client_secret, public_key, base_url):

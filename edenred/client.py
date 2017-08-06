@@ -3,7 +3,7 @@ import os
 import decimal
 
 from .provider import APIProvider
-from .utils import PublicKey
+from .publickey import PublicKey
 
 
 def amount_in_cents(amount):
