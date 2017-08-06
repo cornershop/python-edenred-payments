@@ -7,11 +7,11 @@ from .utils import PublicKey
 
 
 def amount_in_cents(amount):
-    return int(Decimal(amount) * 100)
+    return int(decimal.Decimal(amount) * 100)
 
 
 def amount_with_decimals(amount):
-    return Decimal(amount) / 100
+    return decimal.Decimal(amount) / 100
 
 
 class Edenred(object):
