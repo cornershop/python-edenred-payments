@@ -19,7 +19,7 @@ class APIError(Exception):
             return Unauthorized(error.response)
         if error.response.status_code == 401:
             return InvalidCredentials(error.response)
-        return APIError(error.response, "Unknown Error")
+        return APIError(error.response, error.response.reason)
 
 
 class InvalidCredentials(APIError):

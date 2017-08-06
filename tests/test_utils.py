@@ -2,7 +2,7 @@
 import os
 import tempfile
 import base64
-from unittest import TestCase
+import unittest
 try:
     from unitttest import mock
 except ImportError:
@@ -13,11 +13,28 @@ import Crypto.Cipher.PKCS1_v1_5
 
 from edenred.utils import PublicKey
 
+PRIVATE_KEY = """\
+-----BEGIN RSA PRIVATE KEY-----
+MIICXgIBAAKBgQDSQJ8lQtJMFxEdU8fx9kehxD2ONQwWXdNArKBzDJE5bF03T2QB
+mivGXu71KWf7sO22IPZwv5yQlVWE9csJb2Muphpm7khg1qVactVluSkMgBIpATn4
+F4VHtWmR0HNTIjy108BdFUYQaz3Cnla0KqDOevQtdCX7ndFvbsc8YQeclwIDAQAB
+AoGAdWYj9vhS2K3gnpGTiaXM5aTgAjHYp/yH4wsBJHyV8oxxmFq6KrLdUozbvQT7
+zOxEL3hEYzx6vbjE4dMlJgWOSRCSvyCwd9i/3OD0t3YRpXBjwxqmj7R5UROCljCL
+R1Z+xafy6e1VMEycdjDtWYDdeFyvTq2pfsZNqgBxgoW34kECQQDdYUCboiND7Ao3
+KAlivIxb/x+YssMWogbFMpl03J3OKhGqlCbYNbbz6hwWtvtA5OYiRdPeWQPuLbCb
+OnWA56exAkEA8yHkIjbPPiJVz1hKT6wYQTlVrB9uPCJNSXQ5+CfiL7HKvnTiRk3p
+/5HAp+tQjMhWXANobFfQlOYpCLhzfgrixwJBAK34dTtZCXmhDs4VinqrTWombYAk
+SyeIIOXrQ6kQjnqrmMKCNpyGacX43iYDmiN/PlMEqOD89xe/lCAIqrqoUaECQQCd
+GOb5nISoVzMu+JN7i21Yp51NzDlELb3WmnzidZLW0oB4M7oJR0rNUfY0Cf5QGRqD
+9cfBSbSCoX0eH2CwroP9AkEA1kVSoOXRVti78SQG7HXvQdH4uOlHkj0A/1Yh1XqF
+UFBSmgj49gZBKdKi67mLFG8Tlw02ufmUoEYPw8pmIj9obw==
+-----END RSA PRIVATE KEY-----
+"""
 
-class TestPublicKey(TestCase):
+
+class TestPublicKey(unittest.TestCase):
     def __init__(self, *args, **kwargs):
-        self.length = 1024
-        self.private = Crypto.PublicKey.RSA.generate(self.length)
+        self.private = Crypto.PublicKey.RSA.importKey(PRIVATE_KEY)
         self.public = self.private.publickey()
         super(TestPublicKey, self).__init__(*args, **kwargs)
 
@@ -34,10 +51,9 @@ class TestPublicKey(TestCase):
         os.unlink(self.private_path)
         os.unlink(self.public_path)
 
-    def assert_pkcs1_encrypted(self, message, encrypted, private_key=None):
-        private_key = self.private if private_key is None else private_key
+    def assert_pkcs1_b64_encrypted(self, message, encrypted):
         encrypted = base64.b64decode(encrypted.encode())
-        cipher = Crypto.Cipher.PKCS1_v1_5.new(private_key)
+        cipher = Crypto.Cipher.PKCS1_v1_5.new(self.private)
         sentinel = Crypto.Random.new().read(len(message))
 
         decrypted = cipher.decrypt(encrypted, sentinel)
@@ -71,7 +87,7 @@ class TestPublicKey(TestCase):
 
         encrypted = key.encrypt(message)
 
-        self.assert_pkcs1_encrypted(message, encrypted)
+        self.assert_pkcs1_b64_encrypted(message, encrypted)
 
     def test_equal(self):
         testing = mock.Mock(spec=bool)

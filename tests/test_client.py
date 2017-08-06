@@ -1,16 +1,16 @@
 
-from decimal import Decimal
-from unittest import TestCase
+import decimal
+import unittest
 try:
     from unitttest import mock
 except ImportError:
     import mock
 
 from edenred.client import Edenred, Card, Authorization, Charge, Refund
-from edenred.providers import APIProvider
+from edenred.provider import APIProvider
 
 
-class TestClient(TestCase):
+class TestClient(unittest.TestCase):
     def setUp(self):
         self.provider = mock.Mock(spec=APIProvider)
 
@@ -135,7 +135,7 @@ class TestClient(TestCase):
         self.assertEqual(expected, client.retrieve_card(card_token))
 
 
-class TestCard(TestCase):
+class TestCard(unittest.TestCase):
     def setUp(self):
         self.provider = mock.Mock(spec=APIProvider)
         self.card_token = mock.Mock()
@@ -186,7 +186,7 @@ class TestCard(TestCase):
         )
 
 
-class TestAuthorization(TestCase):
+class TestAuthorization(unittest.TestCase):
     def setUp(self):
         self.provider = mock.Mock(spec=APIProvider)
         self.charge_id = mock.Mock()
@@ -217,7 +217,7 @@ class TestAuthorization(TestCase):
         )
 
 
-class TestRefund(TestCase):
+class TestRefund(unittest.TestCase):
     def setUp(self):
         self.provider = mock.Mock(spec=APIProvider)
         self.charge_id = mock.Mock(spec=str)
@@ -226,7 +226,7 @@ class TestRefund(TestCase):
         self.amount_in_cents = int(self.amount * 100)
 
     def test_init(self):
-        amount = mock.Mock(spec=Decimal)
+        amount = mock.Mock(spec=decimal.Decimal)
         charge = Charge(self.charge_id, self.card, self.provider)
 
         refund = Refund(charge, amount, self.provider)
@@ -237,7 +237,7 @@ class TestRefund(TestCase):
     @mock.patch('edenred.client.amount_with_decimals')
     def test_refund(self, amount_with_decimals):
         charge = Charge(self.charge_id, self.card, self.provider)
-        amount = mock.Mock(spec=Decimal)
+        amount = mock.Mock(spec=decimal.Decimal)
         description = mock.Mock(spec=str)
         amount_response = 101010109
         self.provider.refund.return_value = {'Amount': amount_response}
@@ -248,7 +248,7 @@ class TestRefund(TestCase):
         self.assertEqual(amount_with_decimals.return_value, refund.amount)
 
 
-class TestCharge(TestCase):
+class TestCharge(unittest.TestCase):
     def setUp(self):
         self.provider = mock.Mock(spec=APIProvider)
         self.charge_id = mock.Mock(spec=str)
