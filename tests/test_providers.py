@@ -315,7 +315,7 @@ class TestCapture(ProviderBaseMixin, TestCase):
         card_token = mock.Mock(spec=str)
         authorize_identifier = mock.Mock(spec=str)
         description = mock.Mock(spec=str)
-        amount = mock.Mock(spec=str)
+        amount = mock.Mock(spec=int)
 
         expected_payload = {
             "Capture": {
@@ -351,7 +351,7 @@ class TestAuthorize(ProviderBaseMixin, TestCase):
     def test_authorize(self, request_resource):
         card_token = mock.Mock(spec=str)
         description = mock.Mock(spec=str)
-        amount = mock.Mock(spec=str)
+        amount = mock.Mock(spec=int)
 
         expected_payload = {
             "Authorize": {
@@ -385,7 +385,7 @@ class TestPay(ProviderBaseMixin, TestCase):
     def test_pay(self, request_resource):
         card_token = mock.Mock(spec=str)
         description = mock.Mock(spec=str)
-        amount = mock.Mock(spec=str)
+        amount = mock.Mock(spec=int)
 
         expected_payload = {
             "Pay": {
@@ -421,7 +421,7 @@ class TestRefund(ProviderBaseMixin, TestCase):
         payment_identifier = mock.Mock(spec=str)
         resource = 'Payment/{}'.format(payment_identifier)
         description = mock.Mock(spec=str)
-        amount = mock.Mock(spec=str)
+        amount = mock.Mock(spec=int)
 
         expected_payload = {
             "Pay": {

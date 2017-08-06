@@ -139,6 +139,8 @@ class TestCard(TestCase):
     def setUp(self):
         self.provider = mock.Mock(spec=APIProvider)
         self.card_token = mock.Mock()
+        self.amount = Decimal('123.45')
+        self.amount_in_cents = int(self.amount * 100)
 
     def test_init(self):
         card = Card(self.card_token, self.provider)
@@ -156,30 +158,30 @@ class TestCard(TestCase):
     def test_authorize(self):
         card = Card(self.card_token, self.provider)
         charge_id = mock.Mock()
-        amount = mock.Mock()
+        amount = Decimal('123.45')
         description = mock.Mock()
         expected = Authorization(charge_id, card, self.provider)
         self.provider.authorize.return_value = {'AuthorizeIdentifier': charge_id}
 
-        self.assertEqual(expected, card.authorize(amount, description))
+        self.assertEqual(expected, card.authorize(self.amount, description))
         self.provider.authorize.assert_called_once_with(
             card_token=self.card_token,
-            amount=amount,
+            amount=self.amount_in_cents,
             description=description
         )
 
     def test_capture(self):
         card = Card(self.card_token, self.provider)
         charge_id = mock.Mock()
-        amount = mock.Mock()
+        amount = Decimal('123.45')
         description = mock.Mock()
         expected = Charge(charge_id, card, self.provider)
         self.provider.pay.return_value = {'PayIdentifier': charge_id}
 
-        self.assertEqual(expected, card.capture(amount, description))
+        self.assertEqual(expected, card.capture(self.amount, description))
         self.provider.pay.assert_called_once_with(
             card_token=self.card_token,
-            amount=amount,
+            amount=self.amount_in_cents,
             description=description
         )
 
@@ -189,6 +191,8 @@ class TestAuthorization(TestCase):
         self.provider = mock.Mock(spec=APIProvider)
         self.charge_id = mock.Mock()
         self.card = Card(mock.Mock(spec=str), self.provider)
+        self.amount = Decimal('123.45')
+        self.amount_in_cents = int(self.amount * 100)
 
     def test_init(self):
         authorization = Authorization(self.charge_id, self.card, self.provider)
@@ -204,11 +208,11 @@ class TestAuthorization(TestCase):
         expected = Charge(self.charge_id, self.card, self.provider)
         self.provider.capture.return_value = {'CaptureIdentifier': self.charge_id}
 
-        self.assertEqual(expected, authorization.capture(amount, description))
+        self.assertEqual(expected, authorization.capture(self.amount, description))
         self.provider.capture.assert_called_once_with(
             authorize_identifier=self.charge_id,
             card_token=self.card.card_token,
-            amount=amount,
+            amount=self.amount_in_cents,
             description=description
         )
 
@@ -218,6 +222,8 @@ class TestRefund(TestCase):
         self.provider = mock.Mock(spec=APIProvider)
         self.charge_id = mock.Mock(spec=str)
         self.card = Card(mock.Mock(spec=str), self.provider)
+        self.amount = Decimal('123.45')
+        self.amount_in_cents = int(self.amount * 100)
 
     def test_init(self):
         amount = mock.Mock(spec=Decimal)
@@ -228,17 +234,18 @@ class TestRefund(TestCase):
         self.assertEqual(charge, refund.charge)
         self.assertEqual(amount, refund.amount)
 
-    def test_refund(self):
+    @mock.patch('edenred.client.amount_with_decimals')
+    def test_refund(self, amount_with_decimals):
         charge = Charge(self.charge_id, self.card, self.provider)
         amount = mock.Mock(spec=Decimal)
         description = mock.Mock(spec=str)
-        amount_response = "1010101"
+        amount_response = 101010109
         self.provider.refund.return_value = {'Amount': amount_response}
 
-        refund = charge.refund(amount, description)
+        refund = charge.refund(self.amount, description)
 
         self.assertEqual(charge, refund.charge)
-        self.assertEqual(Decimal(amount_response), refund.amount)
+        self.assertEqual(amount_with_decimals.return_value, refund.amount)
 
 
 class TestCharge(TestCase):

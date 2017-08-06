@@ -6,21 +6,29 @@ from .providers import APIProvider
 from .utils import PublicKey
 
 
+def amount_in_cents(amount):
+    return int(Decimal(amount) * 100)
+
+
+def amount_with_decimals(amount):
+    return Decimal(amount) / 100
+
+
 class Edenred(object):
     def __init__(self, api_provider):
         self.api_provider = api_provider
 
-    @staticmethod
-    def create_client_from_env():
+    @classmethod
+    def create_client_from_env(cls):
         client_id = os.environ['EDENREDPAYMENTS_ID']
         client_secret = os.environ['EDENREDPAYMENTS_SECRET']
         public_key_path = os.environ['EDENREDPAYMENTS_PUBLIC_KEY']
         base_url = os.environ['EDENREDPAYMENTS_URL']
         testing = bool(os.getenv('EDENREDPAYMENTS_TESTING'))
-        return Edenred.create_client(client_id, client_secret, public_key_path, base_url, testing)
+        return cls.create_client(client_id, client_secret, public_key_path, base_url, testing)
 
-    @staticmethod
-    def create_client(client_id, client_secret, public_key_path, base_url, testing=False):
+    @classmethod
+    def create_client(cls, client_id, client_secret, public_key_path, base_url, testing=False):
         public_key = PublicKey(public_key_path, testing=testing)
         api_provider = APIProvider(
             client_id=client_id,
@@ -28,7 +36,7 @@ class Edenred(object):
             public_key=public_key,
             base_url=base_url
         )
-        return Edenred(api_provider)
+        return cls(api_provider)
 
     def register_card(self, card_number, cvv, expiration_month, expiration_year, username, user_id):
         response = self.api_provider.create_payment_method(
@@ -62,9 +70,10 @@ class Card(object):
         return Authorization(charge_id, self.card_token, self.api_provider)
 
     def authorize(self, amount, description):
+
         response = self.api_provider.authorize(
             card_token=self.card_token,
-            amount=amount,
+            amount=amount_in_cents(amount),
             description=description
         )
         return Authorization(response['AuthorizeIdentifier'], self, self.api_provider)
@@ -72,7 +81,7 @@ class Card(object):
     def capture(self, amount, description):
         response = self.api_provider.pay(
             card_token=self.card_token,
-            amount=amount,
+            amount=amount_in_cents(amount),
             description=description
         )
         return Charge(response['PayIdentifier'], self, self.api_provider)
@@ -91,7 +100,7 @@ class Authorization(object):
         response = self.api_provider.capture(
             card_token=self.card.card_token,
             authorize_identifier=self.charge_id,
-            amount=amount,
+            amount=amount_in_cents(amount),
             description=description
         )
         return Charge(response['CaptureIdentifier'], self.card, self.api_provider)
@@ -112,10 +121,10 @@ class Charge(object):
         response = self.api_provider.refund(
             card_token=self.card.card_token,
             payment_identifier=self.charge_id,
-            amount=amount,
+            amount=amount_in_cents(amount),
             description=description
         )
-        return Refund(self, Decimal(response['Amount']), self.api_provider)
+        return Refund(self, amount_with_decimals(response['Amount']), self.api_provider)
 
     def __eq__(self, other):
         return self.api_provider == other.api_provider \
