@@ -6,8 +6,44 @@ try:
 except ImportError:
     import mock
 
-from edenred.client import Edenred, Card, Authorization, Charge, Refund
+from edenred.client import Edenred, Card, Authorization, Charge, Refund, cents_to_decimal, amount_in_cents
 from edenred.provider import APIProvider
+
+
+class TestAmountInCents(unittest.TestCase):
+    def test_float(self):
+        f = 123.23
+        self.assertEqual(12323, amount_in_cents(f))
+
+    def test_decimal(self):
+        d = decimal.Decimal('123.45')
+        self.assertEqual(12345, amount_in_cents(d))
+
+    def test_int(self):
+        i = int(12445)
+        self.assertEqual(1244500, amount_in_cents(i))
+
+    def test_str(self):
+        s = '124.45'
+        self.assertEqual(12445, amount_in_cents(s))
+
+
+class TestCentsToDecimal(unittest.TestCase):
+    def test_float(self):
+        f = 12323
+        self.assertEqual(decimal.Decimal('123.23'), cents_to_decimal(f))
+
+    def test_decimal(self):
+        d = decimal.Decimal('12345')
+        self.assertEqual(decimal.Decimal('123.45'), cents_to_decimal(d))
+
+    def test_int(self):
+        i = int(12445)
+        self.assertEqual(decimal.Decimal('124.45'), cents_to_decimal(i))
+
+    def test_str(self):
+        s = '12445'
+        self.assertEqual(decimal.Decimal('124.45'), cents_to_decimal(s))
 
 
 class TestClient(unittest.TestCase):
@@ -234,8 +270,8 @@ class TestRefund(unittest.TestCase):
         self.assertEqual(charge, refund.charge)
         self.assertEqual(amount, refund.amount)
 
-    @mock.patch('edenred.client.amount_with_decimals')
-    def test_refund(self, amount_with_decimals):
+    @mock.patch('edenred.client.cents_to_decimal')
+    def test_refund(self, cents_to_decimal):
         charge = Charge(self.charge_id, self.card, self.provider)
         amount = mock.Mock(spec=decimal.Decimal)
         description = mock.Mock(spec=str)
@@ -245,8 +281,8 @@ class TestRefund(unittest.TestCase):
         refund = charge.refund(self.amount, description)
 
         self.assertEqual(charge, refund.charge)
-        self.assertEqual(amount_with_decimals.return_value, refund.amount)
-        amount_with_decimals.assert_called_once_with(amount_response)
+        self.assertEqual(cents_to_decimal.return_value, refund.amount)
+        cents_to_decimal.assert_called_once_with(amount_response)
 
 
 class TestCharge(unittest.TestCase):

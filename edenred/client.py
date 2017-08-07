@@ -10,7 +10,7 @@ def amount_in_cents(amount):
     return int(decimal.Decimal(amount) * 100)
 
 
-def amount_with_decimals(amount):
+def cents_to_decimal(amount):
     return decimal.Decimal(amount) / 100
 
 
@@ -124,7 +124,7 @@ class Charge(object):
             amount=amount_in_cents(amount),
             description=description
         )
-        return Refund(self, amount_with_decimals(response['Amount']), self.api_provider)
+        return Refund(self, cents_to_decimal(response['Amount']), self.api_provider)
 
     def __eq__(self, other):
         return self.api_provider == other.api_provider \
